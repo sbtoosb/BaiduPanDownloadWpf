@@ -10,6 +10,8 @@ using System.Windows.Threading;
 using Prism.Logging;
 using BaiduPanDownloadWpf.Infrastructure.Interfaces;
 using Microsoft.Practices.Unity;
+using BaiduPanDownloadWpf.Assets;
+using BaiduPanDownloadWpf.Views.Dialogs;
 
 namespace BaiduPanDownloadWpf
 {
@@ -17,7 +19,8 @@ namespace BaiduPanDownloadWpf
     {
         protected override DependencyObject CreateShell()
         {
-            return new MainWindow();
+            return new SignWindow();
+            //return new MainWindow();
         }
 
         protected override void InitializeShell()
@@ -31,83 +34,55 @@ namespace BaiduPanDownloadWpf
 
         private void OnExit(object sender, ExitEventArgs e)
         {
-            var localDiskUserRepository = Container.Resolve<ILocalDiskUserRepository>();
-            var localDiskUser = localDiskUserRepository.FirstOrDefault();
+            Container.Resolve<ILocalConfigInfo>().Save();
+
+            var mountUserRepository = Container.Resolve<IMountUserRepository>();
+            var localDiskUser = mountUserRepository.FirstOrDefault();
             if (localDiskUser != null)
             {
-                localDiskUserRepository.Save(localDiskUser);
+                mountUserRepository.Save();
             }
         }
 
         protected override void InitializeModules()
         {
             Container.TryResolve<DownloadCoreModule>().Initialize();
+            Logger.Log("Initialize DownloadCoreModule Module.", Category.Debug, Priority.Low);
         }
 
         protected override ILoggerFacade CreateLogger()
         {
-            return new TextLogger(/*TextWriter*/);
+            var filePath = Path.Combine(Directory.GetCurrentDirectory(), "Run records.log");
+            if (File.Exists(filePath)) File.Delete(filePath);
+            var file = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read);
+            var writer = new StreamWriter(file, Encoding.UTF8) { AutoFlush = true };
+            writer.WriteLine($"{UiStringResources.MWTitile} - {UiStringResources.Version}");
+            return new TextLogger(writer);
         }
 
-        private void OnUnhandledExceptionOccurred(object sender, UnhandledExceptionEventArgs ex)
+        private void OnUnhandledExceptionOccurred(object sender, UnhandledExceptionEventArgs e)
         {
-            var e = (Exception) ex.ExceptionObject;
-            var log = new StringBuilder();
-            log.AppendLine("程序在运行时遇到不可预料的错误");
-            log.AppendLine("=======追踪开始=======");
-            log.AppendLine();
-            log.AppendLine("Time: " + DateTime.Now);
-            log.AppendLine("Type: " + e.GetType().Name);
-            log.AppendLine("Message: " + e.Message);
-            log.AppendLine("Version: 0.0.0.8");
-            log.AppendLine("StackTrace: ");
-            log.AppendLine(e.StackTrace);
-            log.AppendLine();
-            log.AppendLine("=======追踪结束=======");
-            log.AppendLine("请将以上信息提供给开发者以供参考");
-            if (File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "Error.log")))
-            {
-                try
-                {
-                    File.Delete(Path.Combine(Directory.GetCurrentDirectory(), "Error.log"));
-                }
-                catch
-                {
-                    throw e;
-                }
-            }
-            File.WriteAllText(Path.Combine(Directory.GetCurrentDirectory(), "Error.log"), log.ToString());
-            throw e;
+            CatchException(e.ExceptionObject as Exception);
         }
 
         private void OnDispatcherUnhandledExceptionOccurred(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
-            var log = new StringBuilder();
-            log.AppendLine("程序在运行时遇到不可预料的错误");
-            log.AppendLine("=======追踪开始=======");
-            log.AppendLine();
-            log.AppendLine("Time: " + DateTime.Now);
-            log.AppendLine("Type: " + e.GetType().Name);
-            log.AppendLine("Version: 0.0.0.8");
-            log.AppendLine("Message: " + e.Exception==null?"无信息":e.Exception.Message);
-            log.AppendLine("StackTrace: ");
-            log.AppendLine(e.Exception==null?"无信息":e.Exception.StackTrace);
-            log.AppendLine();
-            log.AppendLine("=======追踪结束=======");
-            log.AppendLine("请将以上信息提供给开发者以供参考");
-            if (File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "Error.log")))
+            CatchException(e.Exception);
+        }
+
+        private MessageDialog _messageDialog;
+        private void CatchException(Exception error)
+        {
+            if (error == null) return;
+            var message = $"Exception: {error.GetType().Name}, Message: {error.Message}, StackTrace: {Environment.NewLine}{error.StackTrace}{Environment.NewLine}";
+            Logger.Log(message, Category.Exception, Priority.High);
+            Logger.Log("The software has crashed.", Category.Info, Priority.High);
+            if (_messageDialog == null)
             {
-                try
-                {
-                    File.Delete(Path.Combine(Directory.GetCurrentDirectory(), "Error.log"));
-                }
-                catch
-                {
-                    throw e.Exception;
-                }
+                _messageDialog = new MessageDialog(UiStringResources.MessageDialogTitle_Error, UiStringResources.MessageDialogContent_Crash);
+                _messageDialog.ShowDialog();
             }
-            File.WriteAllText(Path.Combine(Directory.GetCurrentDirectory(), "Error.log"), log.ToString());
-            throw e.Exception;
+            Environment.Exit(-1);
         }
     }
 }

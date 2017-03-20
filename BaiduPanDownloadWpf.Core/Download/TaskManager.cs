@@ -10,53 +10,27 @@ using BaiduPanDownloadWpf.Infrastructure;
 using BaiduPanDownloadWpf.Infrastructure.Events;
 using Microsoft.Practices.Unity;
 using System.Diagnostics;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using BaiduPanDownloadWpf.Infrastructure.Interfaces;
 
 namespace BaiduPanDownloadWpf.Core.Download
 {
-
-    //                       玄学时间
-    //                       _oo0oo_
-    //                      o8888888o
-    //                      88" . "88
-    //                      (| -_- |)
-    //                      0\  =  /0
-    //                    ___/`---'\___
-    //                  .' \\|     |// '.
-    //                 / \\|||  :  |||// \
-    //                / _||||| -:- |||||- \
-    //               |   | \\\  -  /// |   |
-    //               | \_|  ''\---/''  |_/ |
-    //               \  .-\__  '-'  ___/-. /
-    //             ___'. .'  /--.--\  `. .'___
-    //          ."" '<  `.___\_<|>_/___.' >' "".
-    //         | | :  `- \`.;`\ _ /`;.`/ - ` : | |
-    //         \  \ `_.   \_ __\ /__ _/   .-` /  /
-    //     =====`-.____`.___ \_____/___.-`___.-'=====
-    //                       `=---='
-    //
-    //
-    //     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    //
-    //               佛祖保佑         永无BUG
-    //
-    //
-    //
-
     public class TaskManager : ModelBase
     {
         private static readonly Dictionary<string, TaskManager> Manager = new Dictionary<string, TaskManager>();
 
-        public static TaskManager GetTaskManagerByLocalDiskUser(IUnityContainer container, LocalDiskUser user)
+        public static TaskManager GetTaskManagerByLocalDiskUser(IUnityContainer container, MountUser user)
         {
-            if (!Manager.ContainsKey(user.Name))
+            if (!Manager.ContainsKey(user.Username))
             {
                 //Manager.Add(user.Name, new TaskManager(user));
-                Manager.Add(user.Name, container.Resolve<TaskManager>(new DependencyOverride<LocalDiskUser>(user)));
+                Manager.Add(user.Username, new TaskManager(container, user));
             }
-            return Manager[user.Name];
+            return Manager[user.Username];
         }
 
-        private readonly LocalDiskUser _user;
+        private readonly MountUser _user;
         private readonly TaskDatabase _database;
         private readonly string _dataFolder;
         private readonly List<HttpDownload> _downloadingTasks = new List<HttpDownload>();
@@ -64,23 +38,29 @@ namespace BaiduPanDownloadWpf.Core.Download
 
         public string TaskListFile => Path.Combine(_dataFolder, "TaskList.json");
 
-        public TaskManager(IUnityContainer container, LocalDiskUser user) : base(container)
+        public TaskManager(IUnityContainer container, MountUser user) : base(container)
         {
             _user = user;
-            _dataFolder = Path.Combine(Directory.GetCurrentDirectory(), "Users", user.Name);
-            _database = TaskDatabase.GetDatabaseByUser(user);
+            _dataFolder = Path.Combine(Common.UserDataSavePath, user.Username);
+            if (!Directory.Exists(_dataFolder))
+                Directory.CreateDirectory(_dataFolder);
+            _database = TaskDatabase.GetDatabaseByUser(Container, user);
             _runing = true;
             new Thread(async () =>
             {
                 while (_runing)
                 {
                     Thread.Sleep(1000);
-                    if (_downloadingTasks.Count(v=>v.DownloadState==DownloadStateEnum.Downloading) < _user.ParallelTaskNumber)
+                    if (_downloadingTasks.Count(v => v.DownloadState == DownloadStateEnum.Downloading) < Container.Resolve<ILocalConfigInfo>().ParallelTaskNumber)
                     {
                         //如果正在下载的文件数量与已经请求的文件数量相同
                         if (_database.GetDownloadingTask().Length == _downloadingTasks.Count)
                         {
                             var result = await _database.Next();
+                            if (result == null)
+                            {
+                                continue;
+                            }
                             if (result.ErrorCode != 0)
                             {
                                 if (result.ErrorCode == 209)
@@ -99,11 +79,12 @@ namespace BaiduPanDownloadWpf.Core.Download
                         var data =
                             _database.GetDownloadingTask()
                                 .FirstOrDefault(v => _downloadingTasks.All(v2 => v.DownloadPath != v2.DownloadPath));
-                        AddDownloadingTask(data.Info);
-
+                        if (data != null)
+                            AddDownloadingTask(data.Info);
                     }
                 }
-            }).Start();
+            })
+            { IsBackground = true }.Start();
         }
 
         private void AddDownloadingTask(DownloadInfo info)
@@ -197,7 +178,7 @@ namespace BaiduPanDownloadWpf.Core.Download
         {
             if (!_database.Contains(id))
                 return;
-            if (_downloadingTasks.Any(v => v.DownloadPath == _database.GetFilePathById(id) && v.DownloadState!=DownloadStateEnum.Downloading))
+            if (_downloadingTasks.Any(v => v.DownloadPath == _database.GetFilePathById(id) && v.DownloadState != DownloadStateEnum.Downloading))
             {
                 _downloadingTasks.ForEach(v =>
                 {
@@ -213,19 +194,23 @@ namespace BaiduPanDownloadWpf.Core.Download
         /// 删除任务
         /// </summary>
         /// <param name="id"></param>
-        public void RemoveTask(long id)
+        public async Task RemoveTask(long id)
         {
-            if (_database.GetFilePathById(id) != string.Empty)
+            await Task.Run(() =>
             {
-                var path=_database.GetFilePathById(id);
-                if (_downloadingTasks.Any(v => v.DownloadPath == path))
+                if (_database.GetFilePathById(id) != string.Empty)
                 {
-                    var task = _downloadingTasks.FirstOrDefault(v => v.DownloadPath == path);
-                    task.StopAndSave();
-                    _downloadingTasks.Remove(task);
+                    var path = _database.GetFilePathById(id);
+                    if (_downloadingTasks.Any(v => v.DownloadPath == path))
+                    {
+                        var task = _downloadingTasks.FirstOrDefault(v => v.DownloadPath == path);
+                        task.StopAndSave();
+                        _downloadingTasks.Remove(task);
+                    }
                 }
-            }
-            _database.RemoveTask(id);
+                _database.RemoveTask(id);
+            });
+            EventAggregator.GetEvent<DownloadStateChangedEvent>().Publish(new DownloadStateChangedEventArgs(id, DownloadStateEnum.Waiting, DownloadStateEnum.Canceled));
         }
 
         /// <summary>

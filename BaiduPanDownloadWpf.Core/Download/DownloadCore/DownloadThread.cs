@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -43,7 +44,7 @@ namespace BaiduPanDownloadWpf.Core.Download.DownloadCore
 
         internal DownloadThread()
         {
-            _workThread = new Thread(Start);
+            _workThread = new Thread(Start) {IsBackground = true};
             _workThread.Start();
         }
 
@@ -51,7 +52,9 @@ namespace BaiduPanDownloadWpf.Core.Download.DownloadCore
         {
             try
             {
-                Thread.Sleep(1000);
+                Thread.Sleep(300);
+                _request?.Abort();
+                _response?.Close();
                 if (_stoped)
                 {
                     return;
@@ -74,6 +77,7 @@ namespace BaiduPanDownloadWpf.Core.Download.DownloadCore
                     }
                 }
                 _request.Timeout = 8000;
+                _request.ReadWriteTimeout = 8000;
                 _request.AddRange(Block.From, Block.To);
                 _response = _request.GetResponse() as HttpWebResponse;
                 if (!File.Exists(Path))
@@ -92,7 +96,7 @@ namespace BaiduPanDownloadWpf.Core.Download.DownloadCore
                             if (i <= 0 && Block.From - 1 != Block.To && Block.From != Block.To)
                             {
                                 //发送空数据,放弃这个链接重试
-                                _workThread = new Thread(Start);
+                                _workThread = new Thread(Start) {IsBackground = true};
                                 _workThread.Start();
                                 return;
                             }
@@ -123,7 +127,7 @@ namespace BaiduPanDownloadWpf.Core.Download.DownloadCore
                     return;
                 }
                 Next();
-                _workThread = new Thread(Start);
+                _workThread = new Thread(Start) {IsBackground = true};
                 _workThread.Start();
             }
         }
@@ -137,10 +141,10 @@ namespace BaiduPanDownloadWpf.Core.Download.DownloadCore
             {
                 return;
             }
+            _stoped = true;
+            _workThread.Abort();
             _request?.Abort();
             _response?.Close();
-            _workThread.Abort();
-            _stoped = true;
         }
 
         private int _num;

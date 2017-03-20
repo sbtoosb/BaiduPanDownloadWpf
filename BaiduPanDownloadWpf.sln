@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BaiduPanDownloadWpf.Infrast
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BaiduPanDownloadWpf.Core", "BaiduPanDownloadWpf.Core\BaiduPanDownloadWpf.Core.csproj", "{51154046-CBD6-4BF7-80AE-356FFF2EB1B8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BaiduPanDownloadWpf.Core.Test", "BaiduPanDownloadWpf.Core.Test\BaiduPanDownloadWpf.Core.Test.csproj", "{265B76DF-7557-4C12-9DFF-3A83889519EF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +43,14 @@ Global
 		{51154046-CBD6-4BF7-80AE-356FFF2EB1B8}.Release|Any CPU.Build.0 = Release|Any CPU
 		{51154046-CBD6-4BF7-80AE-356FFF2EB1B8}.Release|x86.ActiveCfg = Release|Any CPU
 		{51154046-CBD6-4BF7-80AE-356FFF2EB1B8}.Release|x86.Build.0 = Release|Any CPU
+		{265B76DF-7557-4C12-9DFF-3A83889519EF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{265B76DF-7557-4C12-9DFF-3A83889519EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{265B76DF-7557-4C12-9DFF-3A83889519EF}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{265B76DF-7557-4C12-9DFF-3A83889519EF}.Debug|x86.Build.0 = Debug|Any CPU
+		{265B76DF-7557-4C12-9DFF-3A83889519EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{265B76DF-7557-4C12-9DFF-3A83889519EF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{265B76DF-7557-4C12-9DFF-3A83889519EF}.Release|x86.ActiveCfg = Release|Any CPU
+		{265B76DF-7557-4C12-9DFF-3A83889519EF}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
